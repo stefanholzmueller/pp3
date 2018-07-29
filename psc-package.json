@@ -7,6 +7,7 @@
     "console",
     "maybe",
     "prelude",
+    "strongcheck",
     "tuples"
   ]
 }
