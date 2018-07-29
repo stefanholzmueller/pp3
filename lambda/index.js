@@ -7,7 +7,7 @@ exports.handler = (event, context, callback) => {
     var difficulty = Number.parseInt(event.queryStringParameters.difficulty)
     var dice = JSON.parse(event.queryStringParameters.dice)
 
-    var Check = require('./Check')
+    var Check = require('../output/Check')
     var result = Check.evaluateToString(stats)(difficulty)(dice)
 
     var response = {
@@ -18,16 +18,3 @@ exports.handler = (event, context, callback) => {
     }
     callback(null, response)
 }
-
-/*
-    console.log("a")
-    var event = {
-        queryStringParameters: {
-            attributes: "[11,12,13]",
-            dice: "[1,2,3]",
-            difficulty: "3",
-            skill: "7"
-        }
-    }
-    exports.handler(event, null, (error, response) => console.log(response))
-*/
