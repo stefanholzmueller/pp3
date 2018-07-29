@@ -77,7 +77,7 @@ regularOutcome { attributes, skill } { attributeModifier, points } (Dice dice) =
 
 specialOutcome :: Int -> Dice -> Maybe Outcome
 specialOutcome skill (Dice dice) =
-  if atLeastTwo 1 then Just (Success skill)
-  else if atLeastTwo 20 then Just Failure else Nothing
+  if atLeastTwo 1 then Just (AutomaticSuccess (max 1 skill))
+  else if atLeastTwo 20 then Just AutomaticFailure else Nothing
   where
-    atLeastTwo pips = length (filter (_ == pips) dice) > 2
+    atLeastTwo pips = length (filter (_ == pips) dice) >= 2
