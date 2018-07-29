@@ -29,25 +29,22 @@ type Adjustments = { attributeModifier :: Int
 newtype Difficulty = Difficulty Int
 newtype Dice = Dice (Array Int)
 
-data Outcome = AutomaticSuccess Int
-             | Success Int  -- quality; must be >=1 and <=skill
+data Outcome = Success Int  -- quality; must be >=1 (and <=skill)
              | Failure
-             | AutomaticFailure
 derive instance eqOutcome :: Eq Outcome
 derive instance genericOutcome:: Generic Outcome _
 instance showOutcome :: Show Outcome where
   show = genericShow
 
 
+-- TODO: move to bot code
 evaluateToString :: Stats -> Difficulty -> Dice -> String
 evaluateToString stats difficulty dice =
   toString $ evaluate stats difficulty dice
   where
     toString outcome = case outcome of
-      AutomaticSuccess skill -> "Glücklich! Alle " <> show skill <> " Punkte übrig"
-      Success quality        -> "Gelungen mit " <> show quality <> " übrigen Punkt" <> if quality == 1 then "" else "en"
-      Failure                -> "Misslungen"
-      AutomaticFailure       -> "Patzer!"
+      Success quality -> "Gelungen mit " <> show quality <> " übrigen Punkt" <> if quality == 1 then "" else "en"
+      Failure         -> "Misslungen"
 
 evaluate :: Stats -> Difficulty -> Dice -> Outcome
 evaluate stats difficulty dice =
@@ -77,7 +74,7 @@ regularOutcome { attributes, skill } { attributeModifier, points } (Dice dice) =
 
 specialOutcome :: Int -> Dice -> Maybe Outcome
 specialOutcome skill (Dice dice) =
-  if atLeastTwo 1 then Just (AutomaticSuccess (max 1 skill))
-  else if atLeastTwo 20 then Just AutomaticFailure else Nothing
+  if atLeastTwo 1 then Just (Success (max 1 skill))
+  else if atLeastTwo 20 then Just Failure else Nothing
   where
     atLeastTwo pips = length (filter (_ == pips) dice) >= 2

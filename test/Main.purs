@@ -5,7 +5,8 @@ import Prelude
 import Check (Dice(..), Difficulty(..), Outcome(..), evaluate)
 import Control.Monad.Gen (chooseInt)
 import Effect (Effect)
-import Test.StrongCheck (class Arbitrary, arbitrary, assert, (===))
+import Test.StrongCheck (class Arbitrary, Result, annotate, assert, quickCheck, (===))
+import Test.StrongCheck.Gen (suchThat, vectorOf)
 
 main :: Effect Unit
 main = do
@@ -28,21 +29,44 @@ main = do
   assert ((evaluate { attributes: [11, 12, 13], skill: 20 } (Difficulty (-10)) (Dice [13, 12, 11])) === Success 20)
   assert ((evaluate { attributes: [11, 12, 13], skill: 20 } (Difficulty (-10)) (Dice [16, 16, 16])) === Success 18)
   -- special outcomes
-  assert ((evaluate { attributes: [11, 12, 13], skill: 4 } (Difficulty 0) (Dice [1, 1, 1])) === AutomaticSuccess 4)
-  assert ((evaluate { attributes: [11, 12, 13], skill: (-2) } (Difficulty (-5)) (Dice [1, 1, 1])) === AutomaticSuccess 1)
-  assert ((evaluate { attributes: [11, 12, 13], skill: 3 } (Difficulty (-5)) (Dice [1, 9, 1])) === AutomaticSuccess 3)
-  assert ((evaluate { attributes: [11, 12, 13], skill: 3 } (Difficulty 10) (Dice [1, 9, 1])) === AutomaticSuccess 3)
-  assert ((evaluate { attributes: [11, 12, 13], skill: 3 } (Difficulty 7) (Dice [1, 1, 1])) === AutomaticSuccess 3)
-  assert ((evaluate { attributes: [11, 12, 13], skill: 3 } (Difficulty (-2)) (Dice [1, 1, 1])) === AutomaticSuccess 3)
-  assert ((evaluate { attributes: [11, 12, 13], skill: (-2) } (Difficulty (-2)) (Dice [1, 1, 1])) === AutomaticSuccess 1)
-  assert ((evaluate { attributes: [11, 12, 13], skill: (-2) } (Difficulty (-2)) (Dice [1, 1, 1])) === AutomaticSuccess 1)
-  assert ((evaluate { attributes: [11, 12, 13], skill: 5 } (Difficulty 5) (Dice [1, 9, 1])) === AutomaticSuccess 5)
-  assert ((evaluate { attributes: [11, 12, 13], skill: (-2) } (Difficulty 5) (Dice [1, 9, 1])) === AutomaticSuccess 1)
-  assert ((evaluate { attributes: [11, 12, 13], skill: 20 } (Difficulty (-5)) (Dice [20, 20, 20])) === AutomaticFailure)
-  assert ((evaluate { attributes: [11, 12, 13], skill: 20 } (Difficulty 5) (Dice [15, 20, 20])) === AutomaticFailure)
-  -- quality of success is always >=1 and <=skill
-  -- TODO
+  assert ((evaluate { attributes: [11, 12, 13], skill: 4 } (Difficulty 0) (Dice [1, 1, 1])) === Success 4)
+  assert ((evaluate { attributes: [11, 12, 13], skill: (-2) } (Difficulty (-5)) (Dice [1, 1, 1])) === Success 1)
+  assert ((evaluate { attributes: [11, 12, 13], skill: 3 } (Difficulty (-5)) (Dice [1, 9, 1])) === Success 3)
+  assert ((evaluate { attributes: [11, 12, 13], skill: 3 } (Difficulty 10) (Dice [1, 9, 1])) === Success 3)
+  assert ((evaluate { attributes: [11, 12, 13], skill: 3 } (Difficulty 7) (Dice [1, 1, 1])) === Success 3)
+  assert ((evaluate { attributes: [11, 12, 13], skill: 3 } (Difficulty (-2)) (Dice [1, 1, 1])) === Success 3)
+  assert ((evaluate { attributes: [11, 12, 13], skill: (-2) } (Difficulty (-2)) (Dice [1, 1, 1])) === Success 1)
+  assert ((evaluate { attributes: [11, 12, 13], skill: (-2) } (Difficulty (-2)) (Dice [1, 1, 1])) === Success 1)
+  assert ((evaluate { attributes: [11, 12, 13], skill: 5 } (Difficulty 5) (Dice [1, 9, 1])) === Success 5)
+  assert ((evaluate { attributes: [11, 12, 13], skill: (-2) } (Difficulty 5) (Dice [1, 9, 1])) === Success 1)
+  assert ((evaluate { attributes: [11, 12, 13], skill: 20 } (Difficulty (-5)) (Dice [20, 20, 20])) === Failure)
+  assert ((evaluate { attributes: [11, 12, 13], skill: 20 } (Difficulty 5) (Dice [15, 20, 20])) === Failure)
+  -- quality of success is always >=1 (and <=skill)
+  quickCheck randomOutcome
+  where
+    randomOutcome :: SuccessfulCheck -> Result
+    randomOutcome (SuccessfulCheck check) = let outcome = evaluateCheck check
+                                                quality = case outcome of
+                                                            Success q -> q
+                                                            Failure -> 0
+                                                correct = if check.skill > 0 then quality >= 1 && quality <= check.skill else quality == 1
+                                            in annotate correct ("quality must be >=1 (and <=skill), but was " <> show quality <> "\n" <> show check)
+    evaluateCheck check = evaluate { attributes: check.attributes, skill: check.skill } (Difficulty check.difficulty) (Dice check.dice)
 
---newtype RandomDifficulty = Difficulty Int
---instance arbitraryDifficulty :: Arbitrary RandomDifficulty where
---  arbitrary = chooseInt (-7) 20
+newtype SuccessfulCheck = SuccessfulCheck { attributes :: Array Int
+                                          , skill :: Int
+                                          , difficulty :: Int
+                                          , dice :: Array Int
+                                          }
+instance arbitrarySuccessfulCheck :: Arbitrary SuccessfulCheck where
+  arbitrary =
+    let genCheck = do attributes <- vectorOf 3 (chooseInt 7 17)
+                      skill <- chooseInt (-2) 18
+                      difficulty <- chooseInt (-7) 15
+                      dice <- vectorOf 3 (chooseInt 1 20)
+                      pure $ SuccessfulCheck { attributes, skill, difficulty, dice }
+        evaluateCheck (SuccessfulCheck check) = evaluate { attributes: check.attributes, skill: check.skill } (Difficulty check.difficulty) (Dice check.dice)
+        isSuccess outcome = case outcome of
+          Success _ -> true
+          Failure   -> false
+    in suchThat genCheck (\check -> isSuccess $ evaluateCheck check)
