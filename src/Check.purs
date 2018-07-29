@@ -10,6 +10,8 @@ import Prelude
 
 import Data.Array (filter, length, zip)
 import Data.Foldable (sum)
+import Data.Generic.Rep (class Generic)
+import Data.Generic.Rep.Show (genericShow)
 import Data.Maybe (Maybe(..), fromMaybe')
 import Data.Tuple (Tuple(..))
 
@@ -27,12 +29,14 @@ type Adjustments = { attributeModifier :: Int
 newtype Difficulty = Difficulty Int
 newtype Dice = Dice (Array Int)
 
-data Outcome = Success Int  -- quality; must be >=1 and <=skill
+data Outcome = AutomaticSuccess Int
+             | Success Int  -- quality; must be >=1 and <=skill
              | Failure
+             | AutomaticFailure
 derive instance eqOutcome :: Eq Outcome
+derive instance genericOutcome:: Generic Outcome _
 instance showOutcome :: Show Outcome where
-  show (Success quality) = "Success(quality=" <> show quality <> ")"
-  show Failure = "Failure"
+  show = genericShow
 
 
 evaluateToString :: Stats -> Difficulty -> Dice -> String
@@ -40,8 +44,10 @@ evaluateToString stats difficulty dice =
   toString $ evaluate stats difficulty dice
   where
     toString outcome = case outcome of
-      Success quality -> "Gelungen mit " <> show quality <> " übrigen Punkt" <> if quality == 1 then "" else "en"
-      Failure         -> "Misslungen"
+      AutomaticSuccess skill -> "Glücklich! Alle " <> show skill <> " Punkte übrig"
+      Success quality        -> "Gelungen mit " <> show quality <> " übrigen Punkt" <> if quality == 1 then "" else "en"
+      Failure                -> "Misslungen"
+      AutomaticFailure       -> "Patzer!"
 
 evaluate :: Stats -> Difficulty -> Dice -> Outcome
 evaluate stats difficulty dice =
@@ -74,4 +80,4 @@ specialOutcome skill (Dice dice) =
   if atLeastTwo 1 then Just (Success skill)
   else if atLeastTwo 20 then Just Failure else Nothing
   where
-    atLeastTwo pips = length (filter (\x -> x == pips) dice) > 2
+    atLeastTwo pips = length (filter (_ == pips) dice) > 2
