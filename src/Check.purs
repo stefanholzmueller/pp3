@@ -22,14 +22,15 @@ import Data.Tuple (Tuple(..))
 type Stats = { attributes :: Array Int
              , skill :: Int
              }
-type Adjustments = { attributeModifier :: Int
-                   , points :: Int
-                   }
+type AdjustedStats = { attributes :: Array Int
+                     , points :: Int
+                     , skill :: Int
+                     }
 
 newtype Difficulty = Difficulty Int
 newtype Dice = Dice (Array Int)
 
-data Outcome = Success Int  -- quality; must be >=1 (and <=skill)
+data Outcome = Success Int  -- quality; must be >=1 (and <=skill if positive)
              | Failure
 derive instance eqOutcome :: Eq Outcome
 derive instance genericOutcome:: Generic Outcome _
@@ -50,24 +51,24 @@ evaluate :: Stats -> Difficulty -> Dice -> Outcome
 evaluate stats difficulty dice =
   fromMaybe' thunkedRegularOutcome (specialOutcome stats.skill dice)
   where
-    thunkedRegularOutcome = const $ regularOutcome stats (applyDifficultyEdition4 stats difficulty) dice
+    thunkedRegularOutcome = const $ regularOutcome (applyDifficultyEdition4 stats difficulty) dice
 
-applyDifficultyEdition4 :: Stats -> Difficulty -> Adjustments
+applyDifficultyEdition4 :: Stats -> Difficulty -> AdjustedStats
 applyDifficultyEdition4 { attributes, skill } (Difficulty difficulty) =
-  { attributeModifier, points }
+  { attributes: reducedAttributes, points, skill }
   where
     ease = skill - difficulty
     attributeModifier = if ease < 0 then ease else 0
     points = if ease < 0 then 0 else ease
+    reducedAttributes = map (_ + attributeModifier) attributes
 
-regularOutcome :: Stats -> Adjustments -> Dice -> Outcome
-regularOutcome { attributes, skill } { attributeModifier, points } (Dice dice) =
+regularOutcome :: AdjustedStats -> Dice -> Outcome
+regularOutcome { attributes, points, skill } (Dice dice) =
   if usedPoints > points
   then Failure
   else success (points - usedPoints)
   where
-    reducedAttributes = map (_ + attributeModifier) attributes
-    comparisions = map (\(Tuple attr die) -> die - attr) (zip reducedAttributes dice)
+    comparisions = map (\(Tuple attr die) -> die - attr) (zip attributes dice)
     exceedings = filter (_ > 0) comparisions
     usedPoints = sum exceedings
     success leftoverPoints = Success (max 1 (min skill leftoverPoints))

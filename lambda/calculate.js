@@ -7,12 +7,12 @@ exports.handler = (event, context, callback) => {
     var difficulty = Number.parseInt(event.queryStringParameters.difficulty)
 
     var Check = require('../output/Check')
-    var result = Check.calculateToString(stats)(difficulty)
+    var result = Check.calculate(stats)(difficulty)
 
     var response = {
         "statusCode": 200,
         "headers": {},
-        "body": result,
+        "body": JSON.stringify(result),
         "isBase64Encoded": false
     }
     callback(null, response)

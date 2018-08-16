@@ -41,7 +41,7 @@ main = do
   assert ((evaluate { attributes: [11, 12, 13], skill: (-2) } (Difficulty 5) (Dice [1, 9, 1])) === Success 1)
   assert ((evaluate { attributes: [11, 12, 13], skill: 20 } (Difficulty (-5)) (Dice [20, 20, 20])) === Failure)
   assert ((evaluate { attributes: [11, 12, 13], skill: 20 } (Difficulty 5) (Dice [15, 20, 20])) === Failure)
-  -- quality of success is always >=1 (and <=skill)
+  -- quality of success is always >=1 (and <=skill if positive)
   quickCheck randomOutcome
   where
     randomOutcome :: SuccessfulCheck -> Result
