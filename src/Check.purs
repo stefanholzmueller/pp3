@@ -1,4 +1,5 @@
 module Check (
+  calculate,
   evaluate,
   evaluateToString,
   Difficulty(..),
@@ -8,10 +9,12 @@ module Check (
   
 import Prelude
 
-import Data.Array (filter, length, zip)
+import Data.Array (filter, group', length, range, zip)
+import Data.Array.NonEmpty as NEA
 import Data.Foldable (sum)
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
+import Data.Int (toNumber)
 import Data.Maybe (Maybe(..), fromMaybe')
 import Data.Tuple (Tuple(..))
 
@@ -30,13 +33,49 @@ type AdjustedStats = { attributes :: Array Int
 newtype Difficulty = Difficulty Int
 newtype Dice = Dice (Array Int)
 
-data Outcome = Success Int  -- quality; must be >=1 (and <=skill if positive)
-             | Failure
+data Outcome = Failure
+             | Success Int  -- quality; must be >=1 (and <=skill if positive)
 derive instance eqOutcome :: Eq Outcome
+derive instance ordOutcome :: Ord Outcome
 derive instance genericOutcome:: Generic Outcome _
 instance showOutcome :: Show Outcome where
   show = genericShow
 
+type Histogram = Array (Tuple Outcome Int) -- first Failure, then Success ascending
+type Calculation = { averageQualityExcludingFailures :: Number
+                   , averageQualityIncludingFailures :: Number
+                   , chanceForSuccess :: Number
+                   , histogram :: Histogram
+                   }
+
+
+calculate :: Stats -> Difficulty -> Calculation
+calculate stats difficulty =
+  { averageQualityExcludingFailures, averageQualityIncludingFailures, chanceForSuccess, histogram }
+  where
+    histogram = calculateHistogram stats difficulty
+    averageQualityIncludingFailures = toNumber sumOfQualities / 8000.0
+    averageQualityExcludingFailures = toNumber sumOfQualities / toNumber successCount
+    sumOfQualities = sum $ map multiplyQuality histogram
+    multiplyQuality (Tuple Failure _) = 0
+    multiplyQuality (Tuple (Success q) n) = q * n
+    chanceForSuccess = toNumber successCount / 8000.0
+    successCount = sum $ map countSuccesses histogram
+    countSuccesses (Tuple Failure _) = 0
+    countSuccesses (Tuple (Success _) n) = n
+
+calculateHistogram :: Stats -> Difficulty -> Histogram
+calculateHistogram stats difficulty =
+  map toTuple $ group' outcomes
+  where
+    toTuple nonEmptyOutcomes = Tuple (NEA.head nonEmptyOutcomes) (NEA.length nonEmptyOutcomes)
+    outcomes = map (evaluateAdjusted adjustedStats) diceCombinations
+    adjustedStats = applyDifficultyEdition4 stats difficulty
+    diceCombinations = do
+      d1 <- range 1 20
+      d2 <- range 1 20
+      d3 <- range 1 20
+      pure $ Dice [ d1, d2, d3 ]
 
 -- TODO: move to bot code
 evaluateToString :: Stats -> Difficulty -> Dice -> String
@@ -49,9 +88,13 @@ evaluateToString stats difficulty dice =
 
 evaluate :: Stats -> Difficulty -> Dice -> Outcome
 evaluate stats difficulty dice =
-  fromMaybe' thunkedRegularOutcome (specialOutcome stats.skill dice)
+  evaluateAdjusted (applyDifficultyEdition4 stats difficulty) dice
+
+evaluateAdjusted :: AdjustedStats -> Dice -> Outcome
+evaluateAdjusted adjustedStats dice =
+  fromMaybe' thunkedRegularOutcome (specialOutcome adjustedStats.skill dice)
   where
-    thunkedRegularOutcome = const $ regularOutcome (applyDifficultyEdition4 stats difficulty) dice
+    thunkedRegularOutcome = const $ regularOutcome adjustedStats dice
 
 applyDifficultyEdition4 :: Stats -> Difficulty -> AdjustedStats
 applyDifficultyEdition4 { attributes, skill } (Difficulty difficulty) =
